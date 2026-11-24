@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Antarctic Adventure: Depok Snow Edition (8-Bit 3D)</title>
+  <!-- Google Font 8-Bit Retro -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <!-- Three.js r128 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #090d16;
+      font-family: 'Press Start 2P', monospace;
+      color: #ffffff;
+      touch-action: none;
+    }
+
+    /* Wrapper untuk filter transisi Monochrome -> Full Color */
+    #game-viewport {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      filter: grayscale(100%) contrast(1.25);
+      transition: filter 0.25s linear;
+    }
+
+    #canvas-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      image-rendering: pixelated;
+    }
+
+    /* Efek Garis CRT Retro Halus */
+    .scanlines {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, 0.22) 50%
+      );
+      background-size: 100% 4px;
+      z-index: 5;
+    }
+
+    /* Efek Kilatan Kamera Penonton */
+    #camera-flash-overlay {
+      position: absolute;
+      inset: 0;
+      background: #ffffff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 6;
+      transition: opacity 0.08s ease-out;
+    }
+
+    /* HUD Atas Klasik Antarctic Adventure */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 15;
+      padding: 10px 12px;
+      background: linear-gradient(to bottom, rgba(0, 0, 0, 0.88) 70%, rgba(0, 0, 0, 0));
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .hud-top-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: clamp(9px, 2vw, 13px);
+      text-shadow: 2px 2px 0 #000;
+    }
+
+    .hud-item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .hud-label {
+      color: #fde047;
+      font-size: clamp(7px, 1.5vw, 10px);
+    }
+
+    .hud-val {
+      color: #ffffff;
+    }
+
+    /* Bar Progres Jarak & Warna */
+    .hud-bars {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .progress-wrap {
+      flex: 1;
+      height: 14px;
+      background: #1e293b;
+      border: 2px solid #ffffff;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: #38bdf8;
+      transition: width 0.1s linear;
+    }
+
+    .progress-penguin {
+      position: absolute;
+      top: -6px;
+      left: 0%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      filter: drop-shadow(1px 1px 0 #000);
+    }
+
+    .color-meter-wrap {
+      width: clamp(85px, 22vw, 150px);
+      height: 14px;
+      background: #1e293b;
+      border: 2px solid #fde047;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .color-meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #94a3b8, #f43f5e, #facc15, #4ade80, #38bdf8);
+    }
+
+    .color-meter-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7px;
+      color: #fff;
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    /* Tombol Audio di Pojok */
+    #audio-btn {
+      pointer-events: auto;
+      background: #1e293b;
+      color: #fde047;
+      border: 2px solid #ffffff;
+      padding: 6px 8px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      cursor: pointer;
+      box-shadow: 2px 2px 0 #000;
+    }
+
+    #audio-btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: none;
+    }
+
+    /* Pop-up Komik 8-Bit (POW! CEKREK! +500) */
+    #comic-callouts {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 14;
+      overflow: hidden;
+    }
+
+    .callout-text {
+      position: absolute;
+      font-size: clamp(12px, 3vw, 18px);
+      color: #fde047;
+      text-shadow: 3px 3px 0 #dc2626, -1px -1px 0 #000;
+      animation: popFloat 0.85s ease-out forwards;
+      white-space: nowrap;
+    }
+
+    @keyframes popFloat {
+      0% { transform: translate(-50%, 0) scale(0.5); opacity: 1; }
+      40% { transform: translate(-50%, -25px) scale(1.25); opacity: 1; }
+      100% { transform: translate(-50%, -65px) scale(1); opacity: 0; }
+    }
+
+    /* Kotak Dialog Cutscene */
+    #cutscene-box {
+      position: absolute;
+      bottom: clamp(20px, 6vh, 50px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(92vw, 680px);
+      background: rgba(10, 15, 28, 0.94);
+      border: 4px solid #ffffff;
+      box-shadow: 6px 6px 0 #000;
+      padding: 16px;
+      z-index: 25;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .cutscene-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fde047;
+      font-size: clamp(9px, 2vw, 12px);
+    }
+
+    #cutscene-text {
+      font-size: clamp(10px, 2.2vw, 13px);
+      line-height: 1.7;
+      color: #f8fafc;
+      min-height: 54px;
+    }
+
+    .cutscene-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* Layar Overlay (Start, Game Over, Stage Clear) */
+    .overlay-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      background: rgba(6, 10, 20, 0.86);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    .title-badge {
+      background: #dc2626;
+      color: #fde047;
+      border: 3px solid #ffffff;
+      padding: 6px 12px;
+      font-size: clamp(8px, 2vw, 11px);
+      box-shadow: 4px 4px 0 #000;
+    }
+
+    .game-title {
+      font-size: clamp(18px, 4.5vw, 34px);
+      line-height: 1.4;
+      color: #38bdf8;
+      text-shadow: 4px 4px 0 #1e3a8a, 6px 6px 0 #000;
+    }
+
+    .game-subtitle {
+      font-size: clamp(10px, 2.2vw, 14px);
+      color: #fde047;
+      text-shadow: 2px 2px 0 #000;
+      line-height: 1.6;
+      max-width: 620px;
+    }
+
+    .controls-guide {
+      background: rgba(30, 41, 59, 0.9);
+      border: 3px solid #94a3b8;
+      padding: 12px 16px;
+      font-size: clamp(8px, 1.8vw, 11px);
+      line-height: 1.8;
+      color: #e2e8f0;
+      max-width: 580px;
+      text-align: left;
+    }
+
+    .retro-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(11px, 2.5vw, 15px);
+      padding: 14px 22px;
+      background: #22c55e;
+      color: #ffffff;
+      border: 4px solid #ffffff;
+      box-shadow: 5px 5px 0 #000;
+      cursor: pointer;
+      text-shadow: 2px 2px 0 #000;
+      transition: transform 0.08s;
+    }
+
+    .retro-btn:hover {
+      background: #16a34a;
+    }
+
+    .retro-btn:active {
+      transform: translate(4px, 4px);
+      box-shadow: 1px 1px 0 #000;
+    }
+
+    .retro-btn.secondary {
+      background: #f59e0b;
+      font-size: clamp(9px, 2vw, 11px);
+      padding: 10px 14px;
+    }
+
+    /* Kontrol Touchscreen Responsif (Vertical & Horizontal) */
+    #touch-controls {
+      position: absolute;
+      bottom: 14px;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      padding: 0 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+
+    .touch-cluster {
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .touch-btn {
+      width: clamp(56px, 14vw, 76px);
+      height: clamp(56px, 14vw, 76px);
+      background: rgba(15, 23, 42, 0.72);
+      border: 3px solid rgba(255, 255, 255, 0.85);
+      border-radius: 12px;
+      color: #ffffff;
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(10px, 2.5vw, 13px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      box-shadow: 0 4px 0 rgba(0, 0, 0, 0.85);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .touch-btn:active, .touch-btn.pressed {
+      background: rgba(56, 189, 248, 0.85);
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.85);
+    }
+
+    .touch-btn.dash-btn {
+      background: rgba(220, 38, 38, 0.78);
+      border-color: #fde047;
+      color: #fde047;
+    }
+
+    .touch-btn.dash-btn:active, .touch-btn.dash-btn.pressed {
+      background: rgba(239, 68, 68, 0.95);
+    }
+
+    .touch-btn.jump-btn {
+      background: rgba(22, 163, 74, 0.78);
+    }
+
+    .touch-btn span.sub {
+      font-size: 7px;
+      opacity: 0.9;
+    }
+
+    /* Penyesuaian Layar Lanskap (Horizontal) Mobile */
+    @media (orientation: landscape) and (max-height: 520px) {
+      #hud {
+        padding: 6px 12px;
+        gap: 4px;
+      }
+      .touch-btn {
+        width: 54px;
+        height: 54px;
+        font-size: 10px;
+      }
+      #touch-controls {
+        bottom: 8px;
+      }
+      .controls-guide {
+        padding: 8px 12px;
+        line-height: 1.5;
+      }
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Audio BGM Manual (letakkan ost.mp3 di folder yang sama) -->
+  <audio id="bgm" src="./ost.mp3" loop preload="auto"></audio>
+
+  <div id="game-viewport">
+    <div id="canvas-container"></div>
+    <div class="scanlines"></div>
+    <div id="camera-flash-overlay"></div>
+    <div id="comic-callouts"></div>
+
+    <!-- HUD Atas -->
+    <div id="hud">
+      <div class="hud-top-row">
+        <div class="hud-item">
+          <span class="hud-label">SCORE</span>
+          <span class="hud-val" id="hud-score">000000</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">STAGE</span>
+          <span class="hud-val" id="hud-stage">DEPOK-01</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">TIME</span>
+          <span class="hud-val" id="hud-time">90</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">SPEED</span>
+          <span class="hud-val" id="hud-speed">0 KM/H</span>
+        </div>
+        <button id="audio-btn" title="Toggle Suara & OST">SFX:ON</button>
+      </div>
+
+      <div class="hud-bars">
+        <div class="progress-wrap" title="Jarak ke Finish Tugu Depok">
+          <div class="progress-fill" id="progress-fill"></div>
+          <div class="progress-penguin" id="progress-penguin">🐧</div>
+        </div>
+        <div class="color-meter-wrap" title="Restorasi Warna Kota Depok">
+          <div class="color-meter-fill" id="color-fill"></div>
+          <div class="color-meter-text" id="color-text">MONO 0%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kotak Cutscene Pembuka -->
+    <div id="cutscene-box">
+      <div class="cutscene-header">
+        <span id="cutscene-speaker">📺 BERITA DEPOK 8-BIT</span>
+        <span id="cutscene-step">1 / 4</span>
+      </div>
+      <div id="cutscene-text"></div>
+      <div class="cutscene-actions">
+        <button class="retro-btn secondary" id="btn-skip-cutscene">SKIP &gt;&gt;</button>
+        <button class="retro-btn secondary" id="btn-next-cutscene" style="background:#22c55e;">LANJUT &gt;</button>
+      </div>
+    </div>
+
+    <!-- Tombol Sentuh Layar (Mobile & Tablet Vertical/Horizontal) -->
+    <div id="touch-controls" class="hidden">
+      <div class="touch-cluster">
+        <button class="touch-btn" id="btn-left">◀<span class="sub">KIRI</span></button>
+        <button class="touch-btn" id="btn-right">▶<span class="sub">KANAN</span></button>
+      </div>
+      <div class="touch-cluster">
+        <button class="touch-btn dash-btn" id="btn-dash">⚡<span class="sub">DASH</span></button>
+        <button class="touch-btn jump-btn" id="btn-jump">▲<span class="sub">LOMPAT</span></button>
+      </div>
+    </div>
+
+    <!-- Layar Judul / Start -->
+    <div class="overlay-screen" id="start-screen">
+      <div class="title-badge">KONAMI-STYLE 8-BIT TRIBUTE</div>
+      <h1 class="game-title">ANTARCTIC ADVENTURE<br>KOTA DEPOK</h1>
+      <p class="game-subtitle">
+        Badai salju melanda Jl. Margonda Raya! Meluncurlah dari monokrom hingga Kota Depok kembali penuh warna!
+      </p>
+      <div class="controls-guide">
+        <div>⬅️ ➡️ / A D / SWIPE : Pindah Jalur</div>
+        <div>SPACE / ⬆️ / TAP ▲ : Lompati Lubang Es & Anjing Laut</div>
+        <div>SHIFT / Z / ⬇️ / ⚡DASH : Tendang & Terjang Penonton Selfie + Angkot!</div>
+      </div>
+      <button class="retro-btn" id="btn-start">MULAI PETUALANGAN</button>
+    </div>
+
+    <!-- Layar Game Over / Stage Clear -->
+    <div class="overlay-screen hidden" id="end-screen">
+      <div class="title-badge" id="end-badge">STAGE RESULT</div>
+      <h1 class="game-title" id="end-title">FINISH!</h1>
+      <p class="game-subtitle" id="end-summary">Skor Akhir: 0</p>
+      <button class="retro-btn" id="btn-restart">MAIN LAGI</button>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * =========================================================================
+     * ANTARCTIC ADVENTURE: KOTA DEPOK (8-BIT 3D EDITION)
+     * Single-file Three.js + Procedural Pixel Art Textures + Chiptune WebAudio
+     * =========================================================================
+     */
+
+    // --- 1. SISTEM AUDIO (OST Manual ./ost.mp3 + 8-Bit Web Audio SFX) ---
+    const bgmEl = document.getElementById('bgm');
+    const audioBtn = document.getElementById('audio-btn');
+    let audioEnabled = true;
+    let audioCtx = null;
+
+    function initAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      // Putar ./ost.mp3 jika tersedia & tidak dimute
+      if (audioEnabled && bgmEl) {
+        bgmEl.volume = 0.55;
+        bgmEl.play().catch(() => {
+          // Abaikan error jika file ./ost.mp3 belum ditaruh user atau diblokir browser
+        });
+      }
+    }
+
+    audioBtn.addEventListener('click', () => {
+      audioEnabled = !audioEnabled;
+      audioBtn.textContent = audioEnabled ? 'SFX:ON' : 'MUTED';
+      if (audioEnabled) {
+        initAudioContext();
+      } else if (bgmEl) {
+        bgmEl.pause();
+      }
+    });
+
+    // Generator Efek Suara 8-Bit Retro
+    function playSfx(type) {
+      if (!audioEnabled) return;
+      initAudioContext();
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (type === 'jump') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(580, now + 0.16);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        osc.start(now);
+        osc.stop(now + 0.18);
+      } else if (type === 'dash') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(480, now + 0.12);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.25);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+        osc.start(now);
+        osc.stop(now + 0.26);
+      } else if (type === 'kick') {
+        // Suara tendangan komik 8-bit
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(90, now + 0.15);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+        osc.start(now);
+        osc.stop(now + 0.16);
+      } else if (type === 'fish') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.setValueAtTime(659.25, now + 0.06);
+        osc.frequency.setValueAtTime(783.99, now + 0.12);
+        osc.frequency.setValueAtTime(1046.5, now + 0.18);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        osc.start(now);
+        osc.stop(now + 0.28);
+      } else if (type === 'trip') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(240, now);
+        osc.frequency.linearRampToValueAtTime(75, now + 0.35);
+        gain.gain.setValueAtTime(0.16, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+        osc.start(now);
+        osc.stop(now + 0.36);
+      } else if (type === 'flash') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1400, now);
+        osc.frequency.exponentialRampToValueAtTime(2200, now + 0.05);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        osc.start(now);
+        osc.stop(now + 0.06);
+      } else if (type === 'win') {
+        const notes = [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5];
+        notes.forEach((freq, idx) => {
+          const o = audioCtx.createOscillator();
+          const g = audioCtx.createGain();
+          o.type = 'square';
+          o.connect(g);
+          g.connect(audioCtx.destination);
+          o.frequency.setValueAtTime(freq, now + idx * 0.11);
+          g.gain.setValueAtTime(0.12, now + idx * 0.11);
+          g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.11 + 0.1);
+          o.start(now + idx * 0.11);
+          o.stop(now + idx * 0.11 + 0.1);
+        });
+      }
+    }
+
+    // --- 2. GENERATOR TEXTURE PIXEL-ART 8-BIT PROSEDURAL ---
+    function createPixelTexture(width, height, drawFn) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      drawFn(ctx, width, height);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.generateMipmaps = false;
+      return tex;
+    }
+
+    // Tekstur Jalan Salju Margonda 8-Bit
+    const roadTexture = createPixelTexture(64, 64, (ctx, w, h) => {
+      // Aspal gelap tertutup salju
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(0, 0, w, h);
+
+      // Pinggiran salju tebal kiri-kanan
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, 7, h);
+      ctx.fillRect(w - 7, 0, 7, h);
+
+      ctx.fillStyle = '#bae6fd';
+      ctx.fillRect(7, 0, 3, h);
+      ctx.fillRect(w - 10, 0, 3, h);
+
+      // Bercak salju piksel di jalan
+      ctx.fillStyle = '#e2e8f0';
+      for (let i = 0; i < 45; i++) {
+        const px = 10 + ((i * 19) % (w - 20));
+        const py = (i * 23) % h;
+        ctx.fillRect(px, py, 2, 2);
+      }
+
+      // Garis marka jalan putus-putus
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(23, 6, 2, 18);
+      ctx.fillRect(23, 38, 2, 18);
+      ctx.fillRect(39, 6, 2, 18);
+      ctx.fillRect(39, 38, 2, 18);
+    });
+    roadTexture.wrapS = THREE.RepeatWrapping;
+    roadTexture.wrapT = THREE.RepeatWrapping;
+    roadTexture.repeat.set(1, 24);
+
+    // Tekstur Dataran Salju Samping Jalan
+    const snowGroundTexture = createPixelTexture(32, 32, (ctx, w, h) => {
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(4, 6, 4, 2);
+      ctx.fillRect(20, 18, 6, 2);
+      ctx.fillRect(10, 26, 4, 2);
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(16, 4, 4, 4);
+    });
+    snowGroundTexture.wrapS = THREE.RepeatWrapping;
+    snowGroundTexture.wrapT = THREE.RepeatWrapping;
+    snowGroundTexture.repeat.set(30, 40);
+
+    // Tekstur Lubang Es (Klasik Antarctic Adventure)
+    const iceHoleTexture = createPixelTexture(32, 32, (ctx, w, h) => {
+      ctx.clearRect(0, 0, w, h);
+      // Bibir es putih-biru
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(4, 8, 24, 16);
+      ctx.fillRect(8, 4, 16, 24);
+      // Air gelap di dalam lubang
+      ctx.fillStyle = '#0c4a6e';
+      ctx.fillRect(6, 10, 20, 12);
+      ctx.fillRect(10, 6, 12, 20);
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(9, 11, 6, 4);
+    });
+
+    // Tekstur Papan Tanda Depok / Margo City
+    function createSignTexture(bgColor, textColor, line1, line2) {
+      return createPixelTexture(128, 64, (ctx, w, h) => {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(2, 2, w - 4, h - 4);
+        ctx.fillStyle = textColor;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(line1, w / 2, 27);
+        if (line2) {
+          ctx.font = 'bold 10px monospace';
+          ctx.fillText(line2, w / 2, 46);
+        }
+      });
+    }
+
+    // --- 3. INISIALISASI SCENE THREE.JS ---
+    const viewportEl = document.getElementById('game-viewport');
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x8ecae6);
+    scene.fog = new THREE.Fog(0x8ecae6, 35, 135);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 5.2, 10.5);
+    camera.lookAt(0, 1.5, -15);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    // Pencahayaan Retro Cerah
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.78);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.75);
+    dirLight.position.set(18, 35, 20);
+    scene.add(dirLight);
+
+    // --- 4. LINGKUNGAN JALAN MARGONDA & LANDMARK KOTA DEPOK ---
+    const ROAD_WIDTH = 10.5;
+    const LANES = [-3.3, -1.1, 1.1, 3.3]; // 4 jalur cepat untuk menghindari mobil & kerumunan
+
+    // Jalan Raya Salju
+    const roadGeo = new THREE.PlaneGeometry(ROAD_WIDTH, 240);
+    const roadMat = new THREE.MeshLambertMaterial({ map: roadTexture });
+    const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+    roadMesh.rotation.x = -Math.PI / 2;
+    roadMesh.position.z = -95;
+    scene.add(roadMesh);
+
+    // Dataran Salju Luas di Kiri & Kanan
+    const groundGeo = new THREE.PlaneGeometry(240, 240);
+    const groundMat = new THREE.MeshLambertMaterial({ map: snowGroundTexture });
+    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    groundMesh.rotation.x = -Math.PI / 2;
+    groundMesh.position.set(0, -0.05, -95);
+    scene.add(groundMesh);
+
+    // Partikel Salju Turun 8-Bit
+    const snowCount = 450;
+    const snowGeo = new THREE.BufferGeometry();
+    const snowPositions = new Float32Array(snowCount * 3);
+    for (let i = 0; i < snowCount; i++) {
+      snowPositions[i * 3] = (Math.random() - 0.5) * 60;
+      snowPositions[i * 3 + 1] = Math.random() * 28;
+      snowPositions[i * 3 + 2] = -Math.random() * 110 + 15;
+    }
+    snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+    const snowMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.35 });
+    const snowParticles = new THREE.Points(snowGeo, snowMat);
+    scene.add(snowParticles);
+
+    // --- 5. PEMBUAT MODEL VOXEL / 8-BIT (PENGUIN, ANGKOT, PENONTON, DEPOK LANDMARK) ---
+    function createPenguin() {
+      const group = new THREE.Group();
+
+      const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+      const bellyMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+      const beakMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
+      const scarfMat = new THREE.MeshLambertMaterial({ color: 0xef4444 }); // Syal merah khas musim dingin!
+
+      // Badan
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.35, 0.9), bodyMat);
+      body.position.y = 0.85;
+      group.add(body);
+
+      // Perut Putih
+      const belly = new THREE.Mesh(new THREE.BoxGeometry(0.78, 1.0, 0.2), bellyMat);
+      belly.position.set(0, 0.8, 0.42);
+      group.add(belly);
+
+      // Kepala
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.8, 0.85), bodyMat);
+      head.position.set(0, 1.85, 0.05);
+      group.add(head);
+
+      // Mata 8-Bit
+      const eyeWhite = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.1), bellyMat);
+      const eyeL = eyeWhite.clone();
+      eyeL.position.set(-0.24, 1.92, 0.46);
+      const eyeR = eyeWhite.clone();
+      eyeR.position.set(0.24, 1.92, 0.46);
+      group.add(eyeL, eyeR);
+
+      // Paruh Oranye
+      const beak = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.22, 0.35), beakMat);
+      beak.position.set(0, 1.74, 0.55);
+      group.add(beak);
+
+      // Syal Merah + Ekor Syal Berkibar
+      const scarf = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.24, 0.98), scarfMat);
+      scarf.position.set(0, 1.45, 0.02);
+      group.add(scarf);
+
+      const scarfTail = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.2, 0.7), scarfMat);
+      scarfTail.position.set(0.35, 1.38, -0.55);
+      group.add(scarfTail);
+
+      // Sayap Kiri & Kanan
+      const wingGeo = new THREE.BoxGeometry(0.24, 0.85, 0.45);
+      const wingL = new THREE.Mesh(wingGeo, bodyMat);
+      wingL.position.set(-0.66, 0.95, 0);
+      const wingR = new THREE.Mesh(wingGeo, bodyMat);
+      wingR.position.set(0.66, 0.95, 0);
+      group.add(wingL, wingR);
+
+      // Kaki Kiri & Kanan
+      const footGeo = new THREE.BoxGeometry(0.38, 0.18, 0.55);
+      const footL = new THREE.Mesh(footGeo, beakMat);
+      footL.position.set(-0.28, 0.1, 0.12);
+      const footR = new THREE.Mesh(footGeo, beakMat);
+      footR.position.set(0.28, 0.1, 0.12);
+      group.add(footL, footR);
+
+      group.userData = { wingL, wingR, footL, footR, scarfTail };
+      return group;
+    }
+
+    const player = createPenguin();
+    player.position.set(0, 0, 2);
+    // Menghadap ke depan (-Z)
+    player.rotation.y = Math.PI;
+    scene.add(player);
+
+    // Pembuat Mobil & Angkot Depok 8-Bit
+    function createVehicle(type) {
+      const group = new THREE.Group();
+      const colors = [0x0284c7, 0xf97316, 0xdc2626, 0x16a34a, 0xeab308]; // Biru Angkot Depok, Oranye, dll
+      const bodyColor = type === 'angkot' ? 0x0284c7 : colors[Math.floor(Math.random() * colors.length)];
+
+      const mainMat = new THREE.MeshLambertMaterial({ color: bodyColor });
+      const roofMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc }); // Atap bersalju
+      const glassMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
+      const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111827 });
+
+      const length = type === 'angkot' ? 3.2 : 2.6;
+      const height = type === 'angkot' ? 1.45 : 1.15;
+
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.65, height * 0.65, length), mainMat);
+      chassis.position.y = 0.65;
+      group.add(chassis);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.48, height * 0.55, length * 0.72), mainMat);
+      cabin.position.set(0, 0.65 + height * 0.52, -0.1);
+      group.add(cabin);
+
+      // Lapisan Salju di Atap Mobil
+      const snowTop = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.18, length * 0.74), roofMat);
+      snowTop.position.set(0, 0.65 + height * 0.82, -0.1);
+      group.add(snowTop);
+
+      // Kaca Depan & Belakang
+      const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.36, height * 0.38, length * 0.75), glassMat);
+      windshield.position.set(0, 0.65 + height * 0.5, -0.1);
+      group.add(windshield);
+
+      // Strip Kuning Khas Angkot Depok D01/D02
+      if (type === 'angkot') {
+        const stripe = new THREE.Mesh(
+          new THREE.BoxGeometry(1.7, 0.22, length + 0.04),
+          new THREE.MeshLambertMaterial({ color: 0xfacc15 })
+        );
+        stripe.position.y = 0.72;
+        group.add(stripe);
+      }
+
+      // 4 Roda
+      const wheelGeo = new THREE.BoxGeometry(0.28, 0.48, 0.48);
+      [[-0.82, 0.28, length * 0.3], [0.82, 0.28, length * 0.3], [-0.82, 0.28, -length * 0.3], [0.82, 0.28, -length * 0.3]].forEach(pos => {
+        const w = new THREE.Mesh(wheelGeo, wheelMat);
+        w.position.set(...pos);
+        group.add(w);
+      });
+
+      return group;
+    }
+
+    // Pembuat Penonton / Fotografer 8-Bit (Bisa di pinggir jalan atau lari ke tengah jalan!)
+    function createSpectator(hasCamera = true) {
+      const group = new THREE.Group();
+      const jacketColors = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0xa855f7, 0xec4899];
+      const jacketMat = new THREE.MeshLambertMaterial({
+        color: jacketColors[Math.floor(Math.random() * jacketColors.length)]
+      });
+      const skinMat = new THREE.MeshLambertMaterial({ color: 0xfdba74 });
+      const pantsMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+      const hatMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+
+      const legs = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.4), pantsMat);
+      legs.position.y = 0.32;
+      group.add(legs);
+
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.75, 0.45), jacketMat);
+      torso.position.y = 1.0;
+      group.add(torso);
+
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), skinMat);
+      head.position.y = 1.68;
+      group.add(head);
+
+      // Topi Kupluk Salju
+      const beanie = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.26, 0.6), hatMat);
+      beanie.position.y = 2.02;
+      group.add(beanie);
+
+      // Lengan & Kamera HP / DSLR
+      const armGeo = new THREE.BoxGeometry(0.2, 0.55, 0.2);
+      const armL = new THREE.Mesh(armGeo, jacketMat);
+      armL.position.set(-0.46, 1.15, 0.15);
+      const armR = new THREE.Mesh(armGeo, jacketMat);
+      armR.position.set(0.46, 1.15, 0.15);
+      group.add(armL, armR);
+
+      let flashMesh = null;
+      if (hasCamera) {
+        const camBody = new THREE.Mesh(
+          new THREE.BoxGeometry(0.36, 0.24, 0.22),
+          new THREE.MeshLambertMaterial({ color: 0x090d16 })
+        );
+        camBody.position.set(0, 1.38, 0.38);
+        group.add(camBody);
+
+        flashMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(0.45, 0.45, 0.12),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 })
+        );
+        flashMesh.position.set(0, 1.45, 0.52);
+        group.add(flashMesh);
+      }
+
+      group.userData = { armL, armR, flashMesh, phase: Math.random() * Math.PI * 2 };
+      return group;
+    }
+
+    // Pembuat Tugu Selamat Datang Kota Depok Bersalju
+    function createTuguDepok(zPos, labelText = 'KOTA DEPOK') {
+      const group = new THREE.Group();
+      const pillarMat = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
+      const accentMat = new THREE.MeshLambertMaterial({ color: 0x0284c7 });
+
+      // Dua Pilar Gerbang Kiri & Kanan Jalan
+      const pillarL = new THREE.Mesh(new THREE.BoxGeometry(1.4, 7.5, 1.4), pillarMat);
+      pillarL.position.set(-6.4, 3.75, 0);
+      const pillarR = new THREE.Mesh(new THREE.BoxGeometry(1.4, 7.5, 1.4), pillarMat);
+      pillarR.position.set(6.4, 3.75, 0);
+      group.add(pillarL, pillarR);
+
+      // Mahkota Biru Khas Tugu Depok
+      const capL = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.9, 1.8), accentMat);
+      capL.position.set(-6.4, 7.8, 0);
+      const capR = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.9, 1.8), accentMat);
+      capR.position.set(6.4, 7.8, 0);
+      group.add(capL, capR);
+
+      // Spanduk Melintang di Atas Jalan
+      const bannerTex = createSignTexture('#0369a1', '#fde047', labelText, 'MARGONDA SNOW FEST');
+      const banner = new THREE.Mesh(
+        new THREE.BoxGeometry(13.6, 1.8, 0.5),
+        new THREE.MeshLambertMaterial({ map: bannerTex })
+      );
+      banner.position.set(0, 6.8, 0);
+      group.add(banner);
+
+      group.position.z = zPos;
+      scene.add(group);
+      return group;
+    }
+
+    // --- 6. POPULASI LANDMARK DEPOK, PENONTON PINGGIR JALAN & KERETA KRL ---
+    const roadsideObjects = [];
+    const sideSpectators = [];
+
+    function populateDepokScenery() {
+      // Gerbang Start & Finish Tugu Depok
+      createTuguDepok(-18, 'SELAMAT DATANG DEPOK');
+
+      const landmarkNames = [
+        ['MARGO CITY', 'SNOW MALL'],
+        ['STASIUN DEPOK', 'KRL COMMUTER'],
+        ['UNIVERSITAS', 'INDONESIA'],
+        ['D-MALL DEPOK', 'MARGONDA'],
+        ['WARKOP PANCONG', 'HANGAT 24 JAM'],
+        ['ITC DEPOK', 'WINTER SALE']
+      ];
+
+      // Bangunan Gedung Depok & Pohon Bersalju di Kiri-Kanan
+      for (let i = 0; i < 26; i++) {
+        const z = -10 - i * 14;
+        [-1, 1].forEach((side, sIdx) => {
+          const bGroup = new THREE.Group();
+          const bHeight = 6 + ((i * 3 + sIdx * 5) % 10);
+          const bWidth = 5.5 + (i % 3);
+          const bDepth = 6.5;
+
+          const wallColors = [0x94a3b8, 0x64748b, 0xcbd5e1, 0x7dd3fc, 0xfca5a5];
+          const wallMat = new THREE.MeshLambertMaterial({
+            color: wallColors[(i + sIdx) % wallColors.length]
+          });
+
+          const building = new THREE.Mesh(new THREE.BoxGeometry(bWidth, bHeight, bDepth), wallMat);
+          building.position.y = bHeight / 2;
+          bGroup.add(building);
+
+          // Atap Salju Tebal
+          const snowRoof = new THREE.Mesh(
+            new THREE.BoxGeometry(bWidth + 0.4, 0.65, bDepth + 0.4),
+            new THREE.MeshLambertMaterial({ color: 0xffffff })
+          );
+          snowRoof.position.y = bHeight + 0.3;
+          bGroup.add(snowRoof);
+
+          // Papan Nama Landmark Depok
+          const info = landmarkNames[(i + sIdx) % landmarkNames.length];
+          const signTex = createSignTexture('#1e293b', '#38bdf8', info[0], info[1]);
+          const signMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(bWidth * 0.85, 1.8, 0.3),
+            new THREE.MeshLambertMaterial({ map: signTex })
+          );
+          signMesh.position.set(0, Math.min(bHeight - 1.2, 4.5), bDepth / 2 + 0.16);
+          bGroup.add(signMesh);
+
+          bGroup.position.set(side * (ROAD_WIDTH / 2 + 6.2), 0, z);
+          scene.add(bGroup);
+          roadsideObjects.push(bGroup);
+
+          // Kerumunan Penonton & Fotografer di Trotoar Salju
+          for (let p = 0; p < 2; p++) {
+            const spec = createSpectator(true);
+            spec.position.set(
+              side * (ROAD_WIDTH / 2 + 1.3 + p * 0.95),
+              0,
+              z + (p - 0.5) * 3.2
+            );
+            spec.rotation.y = side === -1 ? Math.PI / 2 : -Math.PI / 2;
+            scene.add(spec);
+            sideSpectators.push(spec);
+          }
+        });
+      }
+    }
+    populateDepokScenery();
+
+    // Kereta KRL Commuter Line Depok di Jalur Layang Samping
+    function createKrlTrain() {
+      const trainGroup = new THREE.Group();
+      const bodyMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+      const redMat = new THREE.MeshLambertMaterial({ color: 0xdc2626 });
+      const yellowMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+
+      for (let c = 0; c < 4; c++) {
+        const car = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.4, 7.5), bodyMat);
+        car.position.z = -c * 8.2;
+        trainGroup.add(car);
+
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.26, 0.55, 7.52), redMat);
+        stripe.position.set(0, -0.3, -c * 8.2);
+        trainGroup.add(stripe);
+
+        if (c === 0) {
+          const front = new THREE.Mesh(new THREE.BoxGeometry(2.24, 1.2, 0.2), yellowMat);
+          front.position.set(0, -0.2, 3.8);
+          trainGroup.add(front);
+        }
+      }
+
+      // Rel Layang KRL
+      const track = new THREE.Mesh(
+        new THREE.BoxGeometry(3.2, 0.8, 360),
+        new THREE.MeshLambertMaterial({ color: 0x475569 })
+      );
+      track.position.set(-16.5, 8.5, -140);
+      scene.add(track);
+
+      trainGroup.position.set(-16.5, 10.1, -120);
+      scene.add(trainGroup);
+      return trainGroup;
+    }
+    const krlTrain = createKrlTrain();
+
+    // --- 7. STATE PERMAINAN & OBSTACLE DINAMIS ---
+    const GAME_STATE = {
+      TITLE: 'TITLE',
+      CUTSCENE: 'CUTSCENE',
+      PLAYING: 'PLAYING',
+      PAUSED: 'PAUSED',
+      ENDED: 'ENDED'
+    };
+
+    let currentState = GAME_STATE.TITLE;
+    const GOAL_DISTANCE = 1500; // Meter menuju Finish Tugu Depok
+
+    const state = {
+      score: 0,
+      distance: 0,
+      timeLeft: 95,
+      speed: 24,
+      baseSpeed: 28,
+      maxSpeed: 46,
+      laneIndex: 1, // 0..3
+      targetX: LANES[1],
+      playerY: 0,
+      velY: 0,
+      isJumping: false,
+      dashTimer: 0,
+      stumbleTimer: 0,
+      colorProgress: 0, // 0 (monokrom) -> 1 (full color)
+      flashCooldown: 0,
+      spawnTimer: 0,
+      lastTime: performance.now()
+    };
+
+    // Array entitas aktif di jalan
+    let activeObstacles = [];
+    let kickedEntities = []; // Penonton/mobil yang terpental saat di-dash/tendang
+
+    function clearEntities() {
+      activeObstacles.forEach(obj => scene.remove(obj.mesh));
+      kickedEntities.forEach(obj => scene.remove(obj.mesh));
+      activeObstacles = [];
+      kickedEntities = [];
+    }
+
+    // Spawn Obstacle Klasik Antarctic Adventure + Mobil Depok + Penonton Selfie Tengah Jalan
+    function spawnObstacle() {
+      const rand = Math.random();
+      const laneIdx = Math.floor(Math.random() * LANES.length);
+      const laneX = LANES[laneIdx];
+      const spawnZ = -115;
+
+      if (rand < 0.22) {
+        // 1. Lubang Es Klasik Antarctic Adventure (Harus dilompati!)
+        const mesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.75, 1.75),
+          new THREE.MeshBasicMaterial({ map: iceHoleTexture, transparent: true })
+        );
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(laneX, 0.03, spawnZ);
+        scene.add(mesh);
+        activeObstacles.push({ type: 'hole', mesh, laneIdx, radius: 0.85, passed: false });
+      } else if (rand < 0.38) {
+        // 2. Anjing Laut / Seal Muncul dari Lubang Es (Klasik Antarctic Adventure)
+        const group = new THREE.Group();
+        const hole = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.75, 1.75),
+          new THREE.MeshBasicMaterial({ map: iceHoleTexture, transparent: true })
+        );
+        hole.rotation.x = -Math.PI / 2;
+        hole.position.y = 0.03;
+        group.add(hole);
+
+        const sealBody = new THREE.Mesh(
+          new THREE.BoxGeometry(0.95, 1.2, 0.95),
+          new THREE.MeshLambertMaterial({ color: 0x64748b })
+        );
+        sealBody.position.y = 0.6;
+        group.add(sealBody);
+
+        const sealNose = new THREE.Mesh(
+          new THREE.BoxGeometry(0.3, 0.25, 0.35),
+          new THREE.MeshLambertMaterial({ color: 0x0f172a })
+        );
+        sealNose.position.set(0, 0.95, 0.52);
+        group.add(sealNose);
+
+        group.position.set(laneX, 0, spawnZ);
+        scene.add(group);
+        activeObstacles.push({ type: 'seal', mesh: group, laneIdx, radius: 0.9, passed: false });
+      } else if (rand < 0.66) {
+        // 3. Mobil & Angkot Depok (Melaju di jalan bersalju)
+        const isAngkot = Math.random() < 0.55;
+        const mesh = createVehicle(isAngkot ? 'angkot' : 'car');
+        mesh.position.set(laneX, 0, spawnZ);
+        // Arah mobil searah atau berlawanan
+        const oncoming = Math.random() < 0.45;
+        if (!oncoming) mesh.rotation.y = Math.PI;
+        scene.add(mesh);
+        activeObstacles.push({
+          type: 'vehicle',
+          isAngkot,
+          mesh,
+          laneIdx,
+          relSpeed: oncoming ? 11 : -8,
+          radius: 1.05,
+          passed: false
+        });
+      } else if (rand < 0.88) {
+        // 4. PENONTON RANDOM LARI KE TENGAH JALAN UNTUK FOTO SELFIE! (Bisa di-Dash/Tendang!)
+        const spec = createSpectator(true);
+        const fromLeft = Math.random() < 0.5;
+        const startX = fromLeft ? -ROAD_WIDTH / 2 - 0.8 : ROAD_WIDTH / 2 + 0.8;
+        spec.position.set(startX, 0, spawnZ);
+        spec.rotation.y = 0; // Menghadap kamera ke arah penguin!
+        scene.add(spec);
+        activeObstacles.push({
+          type: 'photobomber',
+          mesh: spec,
+          targetX: laneX,
+          hasFlashed: false,
+          radius: 0.95,
+          passed: false
+        });
+      } else {
+        // 5. Ikan Bonus Terbang (Klasik Antarctic Adventure)
+        const fishGroup = new THREE.Group();
+        const fishBody = new THREE.Mesh(
+          new THREE.BoxGeometry(0.95, 0.48, 0.35),
+          new THREE.MeshLambertMaterial({ color: 0x38bdf8 })
+        );
+        const fishTail = new THREE.Mesh(
+          new THREE.BoxGeometry(0.35, 0.55, 0.35),
+          new THREE.MeshLambertMaterial({ color: 0xfacc15 })
+        );
+        fishTail.position.x = -0.55;
+        fishGroup.add(fishBody, fishTail);
+        fishGroup.position.set(laneX, 1.35, spawnZ);
+        scene.add(fishGroup);
+        activeObstacles.push({ type: 'fish', mesh: fishGroup, laneIdx, radius: 1.0, passed: false });
+      }
+    }
+
+    // --- 8. EFEK KOMIK 8-BIT & KILATAN KAMERA ---
+    const calloutsContainer = document.getElementById('comic-callouts');
+    const flashOverlay = document.getElementById('camera-flash-overlay');
+
+    function showComicCallout(text, screenXPercent = 50, screenYPercent = 45, color = '#fde047') {
+      const el = document.createElement('div');
+      el.className = 'callout-text';
+      el.textContent = text;
+      el.style.left = `${screenXPercent}%`;
+      el.style.top = `${screenYPercent}%`;
+      el.style.color = color;
+      calloutsContainer.appendChild(el);
+      setTimeout(() => el.remove(), 880);
+    }
+
+    function triggerCameraFlash() {
+      if (state.flashCooldown > 0) return;
+      state.flashCooldown = 0.65;
+      flashOverlay.style.opacity = '0.52';
+      playSfx('flash');
+      setTimeout(() => {
+        flashOverlay.style.opacity = '0';
+      }, 90);
+    }
+
+    // --- 9. KONTROL AKSI PEMAIN (KIRI, KANAN, LOMPAT, DASH/TENDANG) ---
+    function moveLeft() {
+      if (currentState !== GAME_STATE.PLAYING) return;
+      if (state.laneIndex > 0) {
+        state.laneIndex--;
+        state.targetX = LANES[state.laneIndex];
+      }
+    }
+
+    function moveRight() {
+      if (currentState !== GAME_STATE.PLAYING) return;
+      if (state.laneIndex < LANES.length - 1) {
+        state.laneIndex++;
+        state.targetX = LANES[state.laneIndex];
+      }
+    }
+
+    function doJump() {
+      if (currentState !== GAME_STATE.PLAYING) return;
+      if (!state.isJumping && state.stumbleTimer <= 0) {
+        state.isJumping = true;
+        state.velY = 13.5;
+        playSfx('jump');
+      }
+    }
+
+    function doDashKick() {
+      if (currentState !== GAME_STATE.PLAYING) return;
+      if (state.dashTimer <= 0 && state.stumbleTimer <= 0) {
+        state.dashTimer = 0.55; // Durasi Spin-Dash / Tendangan
+        playSfx('dash');
+        showComicCallout('SPIN DASH!!', 50, 58, '#38bdf8');
+      }
+    }
+
+    // Keyboard Controls
+    window.addEventListener('keydown', (e) => {
+      if (currentState === GAME_STATE.CUTSCENE) {
+        if (e.code === 'Space' || e.code === 'Enter') {
+          advanceCutscene();
+        }
+        return;
+      }
+      if (currentState !== GAME_STATE.PLAYING) return;
+
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+        e.preventDefault();
+        moveLeft();
+      } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+        e.preventDefault();
+        moveRight();
+      } else if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+        e.preventDefault();
+        doJump();
+      } else if (
+        e.code === 'ShiftLeft' ||
+        e.code === 'ShiftRight' ||
+        e.code === 'KeyZ' ||
+        e.code === 'KeyX' ||
+        e.code === 'ArrowDown' ||
+        e.code === 'KeyS'
+      ) {
+        e.preventDefault();
+        doDashKick();
+      }
+    });
+
+    // Touch On-Screen Buttons
+    function bindTouchBtn(id, actionFn) {
+      const btn = document.getElementById(id);
+      const trigger = (e) => {
+        e.preventDefault();
+        btn.classList.add('pressed');
+        actionFn();
+        setTimeout(() => btn.classList.remove('pressed'), 120);
+      };
+      btn.addEventListener('touchstart', trigger, { passive: false });
+      btn.addEventListener('mousedown', trigger);
+    }
+
+    bindTouchBtn('btn-left', moveLeft);
+    bindTouchBtn('btn-right', moveRight);
+    bindTouchBtn('btn-jump', doJump);
+    bindTouchBtn('btn-dash', doDashKick);
+
+    // Swipe Gestures pada Layar (Untuk kenyamanan Vertical & Horizontal di Mobile)
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    viewportEl.addEventListener('touchstart', (e) => {
+      if (e.target.closest('button')) return;
+      const t = e.changedTouches[0];
+      touchStartX = t.clientX;
+      touchStartY = t.clientY;
+    }, { passive: true });
+
+    viewportEl.addEventListener('touchend', (e) => {
+      if (e.target.closest('button')) return;
+      if (currentState !== GAME_STATE.PLAYING) return;
+
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+
+      if (Math.max(absX, absY) < 22) {
+        // Tap singkat pada layar melakukan Dash/Tendang
+        doDashKick();
+        return;
+      }
+
+      if (absX > absY) {
+        if (dx < 0) moveLeft();
+        else moveRight();
+      } else {
+        if (dy < 0) doJump();
+        else doDashKick();
+      }
+    }, { passive: true });
+
+    // --- 10. SISTEM CUTSCENE PEMBUKA ---
+    const cutsceneDialogues = [
+      {
+        speaker: '📺 BREAKING NEWS DEPOK',
+        text: 'Fenomena langka! Badai salju tebal menyelimuti Jl. Margonda Raya hingga Stasiun Depok!'
+      },
+      {
+        speaker: '📸 WARGA & NETIZEN DEPOK',
+        text: 'Warga berbondong-bondong turun ke jalan membawa kamera & HP untuk memotret si Penguin!'
+      },
+      {
+        speaker: '🐧 KAPTEN PENGUIN',
+        text: 'Jalanan penuh Angkot, lubang es, dan warga yang nekat selfie di tengah jalan! Saatnya meluncur!'
+      },
+      {
+        speaker: '⚡ MISI UTAMA',
+        text: 'Gunakan LOMPAT (Space) dan DASH/TENDANG (Shift/⚡) untuk menyingkirkan kerumunan & kembalikan warna Kota Depok!'
+      }
+    ];
+
+    let cutsceneIndex = 0;
+    const cutsceneBox = document.getElementById('cutscene-box');
+    const cutsceneSpeaker = document.getElementById('cutscene-speaker');
+    const cutsceneStep = document.getElementById('cutscene-step');
+    const cutsceneText = document.getElementById('cutscene-text');
+
+    function startCutscene() {
+      initAudioContext();
+      document.getElementById('start-screen').classList.add('hidden');
+      document.getElementById('end-screen').classList.add('hidden');
+      document.getElementById('touch-controls').classList.add('hidden');
+
+      currentState = GAME_STATE.CUTSCENE;
+      cutsceneIndex = 0;
+      state.colorProgress = 0;
+      updateColorFilter(0);
+
+      cutsceneBox.style.display = 'flex';
+      renderCutsceneStep();
+    }
+
+    function renderCutsceneStep() {
+      const item = cutsceneDialogues[cutsceneIndex];
+      cutsceneSpeaker.textContent = item.speaker;
+      cutsceneStep.textContent = `${cutsceneIndex + 1} / ${cutsceneDialogues.length}`;
+      cutsceneText.textContent = item.text;
+      triggerCameraFlash();
+    }
+
+    function advanceCutscene() {
+      cutsceneIndex++;
+      if (cutsceneIndex >= cutsceneDialogues.length) {
+        beginGameplay();
+      } else {
+        renderCutsceneStep();
+      }
+    }
+
+    document.getElementById('btn-next-cutscene').addEventListener('click', advanceCutscene);
+    document.getElementById('btn-skip-cutscene').addEventListener('click', beginGameplay);
+    document.getElementById('btn-start').addEventListener('click', startCutscene);
+    document.getElementById('btn-restart').addEventListener('click', beginGameplay);
+
+    function beginGameplay() {
+      initAudioContext();
+      cutsceneBox.style.display = 'none';
+      document.getElementById('start-screen').classList.add('hidden');
+      document.getElementById('end-screen').classList.add('hidden');
+      document.getElementById('touch-controls').classList.remove('hidden');
+
+      clearEntities();
+      state.score = 0;
+      state.distance = 0;
+      state.timeLeft = 95;
+      state.speed = 26;
+      state.laneIndex = 1;
+      state.targetX = LANES[1];
+      state.playerY = 0;
+      state.velY = 0;
+      state.isJumping = false;
+      state.dashTimer = 0;
+      state.stumbleTimer = 0;
+      state.colorProgress = 0;
+      state.spawnTimer = 0.4;
+
+      player.position.set(state.targetX, 0, 2);
+      player.rotation.set(0, Math.PI, 0);
+
+      currentState = GAME_STATE.PLAYING;
+      showComicCallout('GO!! DEPOK MARGONDA!', 50, 40, '#4ade80');
+    }
+
+    function finishGame(isWin) {
+      currentState = GAME_STATE.ENDED;
+      document.getElementById('touch-controls').classList.add('hidden');
+      const endScreen = document.getElementById('end-screen');
+      endScreen.classList.remove('hidden');
+
+      if (isWin) {
+        updateColorFilter(1);
+        playSfx('win');
+        const timeBonus = Math.floor(state.timeLeft) * 50;
+        state.score += timeBonus;
+        document.getElementById('end-badge').textContent = 'STAGE CLEAR - 100% FULL COLOR!';
+        document.getElementById('end-title').textContent = 'TUGU DEPOK TERCAPAI!';
+        document.getElementById('end-summary').textContent =
+          `Kota Depok kembali berwarna! Time Bonus: +${timeBonus} | Total Skor: ${state.score}`;
+      } else {
+        document.getElementById('end-badge').textContent = 'TIME OVER';
+        document.getElementById('end-title').textContent = 'WAKTU HABIS!';
+        document.getElementById('end-summary').textContent =
+          `Jarak Ditempuh: ${Math.floor(state.distance)}m / ${GOAL_DISTANCE}m | Skor: ${state.score}`;
+      }
+    }
+
+    // --- 11. TRANSISI WARNA MONOCHROME -> FULL COLOR ---
+    function updateColorFilter(progress) {
+      const clamped = Math.max(0, Math.min(1, progress));
+      const grayPct = Math.round((1 - clamped) * 100);
+      const contrast = (1.25 - clamped * 0.2).toFixed(2);
+      const saturate = (1 + clamped * 0.25).toFixed(2);
+      viewportEl.style.filter = `grayscale(${grayPct}%) contrast(${contrast}) saturate(${saturate})`;
+
+      const pctText = Math.round(clamped * 100);
+      document.getElementById('color-fill').style.width = `${pctText}%`;
+      document.getElementById('color-text').textContent =
+        pctText < 100 ? `COLOR ${pctText}%` : 'FULL COLOR!';
+    }
+
+    // --- 12. UPDATE LOOP & DETEKSI TABRAKAN ---
+    function updateGame(dt) {
+      // Animasi salju turun selalu aktif
+      const snowAttr = snowParticles.geometry.attributes.position;
+      for (let i = 0; i < snowCount; i++) {
+        let y = snowAttr.getY(i) - dt * 6.5;
+        let x = snowAttr.getX(i) + Math.sin(performance.now() * 0.002 + i) * dt * 1.2;
+        if (y < 0) y = 26;
+        snowAttr.setY(i, y);
+        snowAttr.setX(i, x);
+      }
+      snowAttr.needsUpdate = true;
+
+      // Gerakkan KRL Commuter Line di jalur atas
+      krlTrain.position.z += dt * 36;
+      if (krlTrain.position.z > 45) {
+        krlTrain.position.z = -150;
+      }
+
+      // Animasi penonton pinggir jalan melambai & jepret kamera
+      const nowSec = performance.now() * 0.001;
+      sideSpectators.forEach((spec, idx) => {
+        spec.position.y = Math.abs(Math.sin(nowSec * 5 + spec.userData.phase)) * 0.22;
+        if (spec.userData.flashMesh) {
+          const flashCycle = (nowSec * 1.7 + idx * 0.63) % 4;
+          spec.userData.flashMesh.material.opacity = flashCycle < 0.12 ? 0.95 : 0;
+        }
+      });
+
+      if (state.flashCooldown > 0) state.flashCooldown -= dt;
+
+      // Kamera sinematik saat Cutscene
+      if (currentState === GAME_STATE.CUTSCENE) {
+        const angle = nowSec * 0.7;
+        camera.position.x = Math.sin(angle) * 4.5;
+        camera.position.y = 3.2 + Math.cos(angle * 1.5) * 0.4;
+        camera.position.z = 6.8;
+        camera.lookAt(0, 1.3, 1.5);
+        return;
+      }
+
+      if (currentState !== GAME_STATE.PLAYING) return;
+
+      // Kembalikan posisi kamera gameplay normal
+      camera.position.x += (player.position.x * 0.35 - camera.position.x) * 8 * dt;
+      camera.position.y += (5.2 - camera.position.y) * 8 * dt;
+      camera.position.z += (10.5 - camera.position.z) * 8 * dt;
+      camera.lookAt(player.position.x * 0.25, 1.4, -14);
+
+      // Timer & Kecepatan
+      state.timeLeft -= dt;
+      if (state.timeLeft <= 0) {
+        state.timeLeft = 0;
+        finishGame(false);
+        return;
+      }
+
+      if (state.stumbleTimer > 0) {
+        state.stumbleTimer -= dt;
+        state.speed = 9;
+      } else if (state.dashTimer > 0) {
+        state.dashTimer -= dt;
+        state.speed = state.maxSpeed;
+      } else {
+        state.speed += (state.baseSpeed - state.speed) * 4 * dt;
+      }
+
+      // Progres Jarak & Warna (Monokrom -> Full Color seiring jarak & aksi)
+      const stepDist = state.speed * dt;
+      state.distance += stepDist;
+      state.score += Math.floor(stepDist * 2);
+
+      const distRatio = Math.min(1, state.distance / GOAL_DISTANCE);
+      state.colorProgress = Math.max(state.colorProgress, distRatio);
+      updateColorFilter(state.colorProgress);
+
+      if (state.distance >= GOAL_DISTANCE) {
+        finishGame(true);
+        return;
+      }
+
+      // Scroll Tekstur Jalan & Pemandangan Kota Depok
+      roadTexture.offset.y -= stepDist * 0.14;
+      snowGroundTexture.offset.y -= stepDist * 0.14;
+
+      roadsideObjects.forEach((obj) => {
+        obj.position.z += stepDist;
+        if (obj.position.z > 20) {
+          obj.position.z -= 26 * 14;
+        }
+      });
+
+      sideSpectators.forEach((spec) => {
+        spec.position.z += stepDist;
+        if (spec.position.z > 18) {
+          spec.position.z -= 26 * 14;
+        }
+      });
+
+      // Gerakan Horizontal Penguin
+      player.position.x += (state.targetX - player.position.x) * 14 * dt;
+
+      // Gerakan Lompat Vertikal
+      if (state.isJumping) {
+        state.playerY += state.velY * dt;
+        state.velY -= 34 * dt;
+        if (state.playerY <= 0) {
+          state.playerY = 0;
+          state.velY = 0;
+          state.isJumping = false;
+        }
+      }
+      player.position.y = state.playerY;
+
+      // Animasi Kaki, Sayap, Spin-Dash, atau Tersandung
+      const { wingL, wingR, footL, footR, scarfTail } = player.userData;
+      scarfTail.rotation.y = Math.sin(nowSec * 16) * 0.45;
+
+      if (state.dashTimer > 0) {
+        // Spin-Dash / Tendangan Berputar 8-Bit!
+        player.rotation.y += dt * 24;
+        player.rotation.x = 0.25;
+      } else if (state.stumbleTimer > 0) {
+        player.rotation.y = Math.PI;
+        player.rotation.z = Math.sin(nowSec * 28) * 0.45;
+      } else {
+        player.rotation.y = Math.PI;
+        player.rotation.x = 0;
+        player.rotation.z = Math.sin(nowSec * 14) * 0.08;
+        wingL.rotation.z = 0.35 + Math.sin(nowSec * 16) * 0.35;
+        wingR.rotation.z = -0.35 - Math.sin(nowSec * 16) * 0.35;
+        footL.position.z = 0.12 + Math.sin(nowSec * 18) * 0.2;
+        footR.position.z = 0.12 - Math.sin(nowSec * 18) * 0.2;
+      }
+
+      // Spawn Obstacle Berkala
+      state.spawnTimer -= dt;
+      if (state.spawnTimer <= 0) {
+        spawnObstacle();
+        state.spawnTimer = Math.max(0.42, 0.95 - distRatio * 0.4);
+      }
+
+      // Update Semua Obstacle & Deteksi Tabrakan
+      for (let i = activeObstacles.length - 1; i >= 0; i--) {
+        const obs = activeObstacles[i];
+        const moveZ = obs.type === 'vehicle' ? (state.speed + obs.relSpeed) * dt : stepDist;
+        obs.mesh.position.z += moveZ;
+
+        // Perilaku Khusus Penonton Random Lari ke Tengah Jalan untuk Selfie
+        if (obs.type === 'photobomber') {
+          obs.mesh.position.x += (obs.targetX - obs.mesh.position.x) * 3.5 * dt;
+          obs.mesh.position.y = Math.abs(Math.sin(nowSec * 12 + i)) * 0.18;
+
+          // Jepret foto dengan flash saat mendekati penguin!
+          if (!obs.hasFlashed && obs.mesh.position.z > -24 && obs.mesh.position.z < -8) {
+            obs.hasFlashed = true;
+            if (obs.mesh.userData.flashMesh) {
+              obs.mesh.userData.flashMesh.material.opacity = 1;
+              setTimeout(() => {
+                if (obs.mesh && obs.mesh.userData.flashMesh) {
+                  obs.mesh.userData.flashMesh.material.opacity = 0;
+                }
+              }, 120);
+            }
+            triggerCameraFlash();
+            showComicCallout('CEKREK! 📸', 50 + obs.mesh.position.x * 6, 36, '#ffffff');
+          }
+        } else if (obs.type === 'fish') {
+          obs.mesh.rotation.y += dt * 4;
+          obs.mesh.position.y = 1.35 + Math.sin(nowSec * 6 + i) * 0.3;
+        }
+
+        // Cek Tabrakan dengan Penguin (Z dekat 2.0)
+        const dz = Math.abs(obs.mesh.position.z - player.position.z);
+        const dx = Math.abs(obs.mesh.position.x - player.position.x);
+
+        if (dz < 1.25 && dx < obs.radius) {
+          if (obs.type === 'fish') {
+            // Ambil Ikan Bonus!
+            playSfx('fish');
+            state.score += 300;
+            state.colorProgress = Math.min(1, state.colorProgress + 0.06);
+            showComicCallout('IKAN BONUS +300!', 50, 42, '#38bdf8');
+            scene.remove(obs.mesh);
+            activeObstacles.splice(i, 1);
+            continue;
+          }
+
+          // Jika sedang DASH / TENDANG: Penonton Selfie & Mobil Ringan Bisa Ditendang Terpental!
+          if (state.dashTimer > 0 && (obs.type === 'photobomber' || obs.type === 'vehicle' || obs.type === 'seal')) {
+            playSfx('kick');
+            const bonus = obs.type === 'vehicle' ? 500 : 350;
+            state.score += bonus;
+            state.colorProgress = Math.min(1, state.colorProgress + 0.05);
+
+            const label =
+              obs.type === 'photobomber'
+                ? `TENDANG SELFIE! +${bonus}`
+                : obs.type === 'vehicle'
+                ? `SMASH ANGKOT! +${bonus}`
+                : `KICK SEAL! +${bonus}`;
+            showComicCallout(label, 50, 45, '#fde047');
+
+            // Lempar entitas keluar jalur dengan animasi komik
+            kickedEntities.push({
+              mesh: obs.mesh,
+              vx: (obs.mesh.position.x >= player.position.x ? 1 : -1) * 18,
+              vy: 14,
+              vz: -12,
+              life: 1.0
+            });
+            activeObstacles.splice(i, 1);
+            continue;
+          }
+
+          // Jika tidak sedang Dash, cek apakah berhasil melompati lubang/seal/penonton
+          const clearedByJump = state.playerY > (obs.type === 'vehicle' ? 1.55 : 0.75);
+          if (!clearedByJump && state.stumbleTimer <= 0) {
+            playSfx('trip');
+            state.stumbleTimer = 0.75;
+            state.velY = 6;
+            state.isJumping = true;
+            showComicCallout('ADUH! AWAS!', 50, 48, '#ef4444');
+            scene.remove(obs.mesh);
+            activeObstacles.splice(i, 1);
+            continue;
+          }
+        }
+
+        // Hapus obstacle yang sudah lewat ke belakang kamera
+        if (obs.mesh.position.z > 16) {
+          scene.remove(obs.mesh);
+          activeObstacles.splice(i, 1);
+        }
+      }
+
+      // Animasi Entitas yang Terpental Akibat Dash/Tendangan
+      for (let i = kickedEntities.length - 1; i >= 0; i--) {
+        const k = kickedEntities[i];
+        k.mesh.position.x += k.vx * dt;
+        k.mesh.position.y += k.vy * dt;
+        k.mesh.position.z += k.vz * dt;
+        k.vy -= 28 * dt;
+        k.mesh.rotation.x += 12 * dt;
+        k.mesh.rotation.z += 15 * dt;
+        k.life -= dt;
+        if (k.life <= 0) {
+          scene.remove(k.mesh);
+          kickedEntities.splice(i, 1);
+        }
+      }
+
+      // Update HUD
+      document.getElementById('hud-score').textContent = String(state.score).padStart(6, '0');
+      document.getElementById('hud-time').textContent = Math.ceil(state.timeLeft);
+      document.getElementById('hud-speed').textContent = `${Math.round(state.speed * 3.2)} KM/H`;
+
+      const pct = Math.min(100, (state.distance / GOAL_DISTANCE) * 100);
+      document.getElementById('progress-fill').style.width = `${pct}%`;
+      document.getElementById('progress-penguin').style.left = `${pct}%`;
+    }
+
+    // --- 13. RESIZE RESPONSIVE (VERTICAL & HORIZONTAL) ---
+    function handleResize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      // Sedikit perlebar FOV pada layar portrait sempit agar 4 jalur tetap terlihat jelas
+      camera.fov = w < h ? 70 : 58;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', () => setTimeout(handleResize, 120));
+
+    // --- 14. MAIN ANIMATION LOOP ---
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - state.lastTime) / 1000);
+      state.lastTime = now;
+
+      updateGame(dt);
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function () {
+      handleResize();
+      state.lastTime = performance.now();
+      requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>
