@@ -179,29 +179,45 @@
     }
 
     /* Tombol Audio di Pojok */
-    #audio-btn {
+    .audio-controls {
+      pointer-events: auto;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .hud-btn {
       pointer-events: auto;
       background: #1e293b;
       color: #fde047;
       border: 2px solid #ffffff;
       padding: 6px 8px;
       font-family: 'Press Start 2P', monospace;
-      font-size: 9px;
+      font-size: clamp(7px, 1.5vw, 9px);
       cursor: pointer;
       box-shadow: 2px 2px 0 #000;
+      white-space: nowrap;
     }
 
-    #audio-btn:active {
+    .hud-btn:active {
       transform: translate(2px, 2px);
       box-shadow: none;
     }
 
-    /* Pop-up Komik 8-Bit (POW! CEKREK! +500) */
-    #comic-callouts {
-      position: absolute;
-      inset: 0;
+    .hud-btn.yt-active {
+      background: #b91c1c;
+      color: #ffffff;
+    }
+
+    /* Container tersembunyi untuk YouTube IFrame Audio Player */
+    #yt-audio-wrapper {
+      position: fixed;
+      width: 1px;
+      height: 1px;
+      left: -9999px;
+      top: -9999px;
+      opacity: 0;
       pointer-events: none;
-      z-index: 14;
       overflow: hidden;
     }
 
@@ -427,8 +443,13 @@
 </head>
 <body>
 
-  <!-- Audio BGM Manual (letakkan ost.mp3 di folder yang sama) -->
+  <!-- Audio BGM Manual Fallback (letakkan ost.mp3 di folder yang sama) -->
   <audio id="bgm" src="./ost.mp3" loop preload="auto"></audio>
+
+  <!-- YouTube IFrame Player untuk OST: Antarctic Adventure (ABO Electronic Remix) -->
+  <div id="yt-audio-wrapper">
+    <div id="yt-player"></div>
+  </div>
 
   <div id="game-viewport">
     <div id="canvas-container"></div>
@@ -455,7 +476,10 @@
           <span class="hud-label">SPEED</span>
           <span class="hud-val" id="hud-speed">0 KM/H</span>
         </div>
-        <button id="audio-btn" title="Toggle Suara & OST">SFX:ON</button>
+        <div class="audio-controls">
+          <button id="ost-source-btn" class="hud-btn yt-active" title="Ganti Sumber Musik (YouTube Remix / Local ./ost.mp3)">OST:YT</button>
+          <button id="audio-btn" class="hud-btn" title="Mute / Unmute Semua Suara">SFX:ON</button>
+        </div>
       </div>
 
       <div class="hud-bars">
@@ -523,15 +547,149 @@
     /**
      * =========================================================================
      * ANTARCTIC ADVENTURE: KOTA DEPOK (8-BIT 3D EDITION)
-     * Single-file Three.js + Procedural Pixel Art Textures + Chiptune WebAudio
+     * Single-file Three.js + Procedural Pixel Art Textures + YouTube & Chiptune Audio
      * =========================================================================
      */
 
-    // --- 1. SISTEM AUDIO (OST Manual ./ost.mp3 + 8-Bit Web Audio SFX) ---
+    // --- 1. SISTEM AUDIO (YouTube OST 6aqT5nq13D4 + Fallback ./ost.mp3 + 8-Bit SFX) ---
+    const YT_VIDEO_ID = '6aqT5nq13D4'; // Antarctic Adventure (ABO Electronic Remix)
     const bgmEl = document.getElementById('bgm');
     const audioBtn = document.getElementById('audio-btn');
+    const ostSourceBtn = document.getElementById('ost-source-btn');
+
     let audioEnabled = true;
+    let ostMode = 'YT'; // 'YT' (YouTube Remix) atau 'LOCAL' (./ost.mp3)
+    let ytPlayer = null;
+    let ytReady = false;
+    let ytFailed = false;
     let audioCtx = null;
+
+    // Muat YouTube IFrame API secara asinkron dengan aman
+    (function loadYouTubeAPI() {
+      try {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        tag.onerror = () => {
+          ytFailed = true;
+          fallbackToLocalOst('Offline / YT API diblokir');
+        };
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+      } catch (err) {
+        ytFailed = true;
+        fallbackToLocalOst('Gagal memuat YT API');
+      }
+    })();
+
+    // Callback global wajib dari YouTube IFrame API
+    window.onYouTubeIframeAPIReady = function () {
+      try {
+        ytPlayer = new YT.Player('yt-player', {
+          height: '1',
+          width: '1',
+          videoId: YT_VIDEO_ID,
+          playerVars: {
+            autoplay: 0,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            loop: 1,
+            playlist: YT_VIDEO_ID, // Wajib agar loop bekerja di YouTube Embed
+            modestbranding: 1,
+            playsinline: 1,
+            rel: 0,
+            origin: window.location.origin
+          },
+          events: {
+            onReady: function (event) {
+              ytReady = true;
+              event.target.setVolume(65);
+              if (audioEnabled && ostMode === 'YT' && currentState !== GAME_STATE.TITLE) {
+                playActiveOst();
+              }
+            },
+            onStateChange: function (event) {
+              // Pastikan berulang mulus jika video berakhir
+              if (event.data === YT.PlayerState.ENDED && audioEnabled && ostMode === 'YT') {
+                event.target.seekTo(0);
+                event.target.playVideo();
+              }
+            },
+            onError: function () {
+              ytFailed = true;
+              fallbackToLocalOst('Video YT tidak dapat diputar');
+            }
+          }
+        });
+      } catch (e) {
+        ytFailed = true;
+        fallbackToLocalOst('Error inisialisasi YT Player');
+      }
+    };
+
+    function updateOstButtonUI() {
+      if (ostMode === 'YT') {
+        ostSourceBtn.textContent = 'OST:YT';
+        ostSourceBtn.classList.add('yt-active');
+      } else {
+        ostSourceBtn.textContent = 'OST:MP3';
+        ostSourceBtn.classList.remove('yt-active');
+      }
+    }
+
+    function fallbackToLocalOst(reason) {
+      if (ostMode === 'LOCAL') return;
+      ostMode = 'LOCAL';
+      updateOstButtonUI();
+      if (ytReady && ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+        try { ytPlayer.pauseVideo(); } catch (_) {}
+      }
+      if (audioEnabled && bgmEl) {
+        bgmEl.volume = 0.55;
+        bgmEl.play().catch(() => {});
+      }
+    }
+
+    function playActiveOst() {
+      if (!audioEnabled) return;
+
+      if (ostMode === 'YT' && !ytFailed) {
+        if (bgmEl && !bgmEl.paused) bgmEl.pause();
+        if (ytReady && ytPlayer && typeof ytPlayer.playVideo === 'function') {
+          try {
+            ytPlayer.unMute();
+            ytPlayer.setVolume(65);
+            ytPlayer.playVideo();
+          } catch (_) {
+            fallbackToLocalOst('YT Playback Error');
+          }
+        } else {
+          // Jika YT API belum selesai loading saat tombol Start diklik, putar lokal sementara
+          setTimeout(() => {
+            if (!ytReady && ostMode === 'YT') {
+              fallbackToLocalOst('YT Timeout');
+            }
+          }, 3500);
+        }
+      } else {
+        if (ytReady && ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+          try { ytPlayer.pauseVideo(); } catch (_) {}
+        }
+        if (bgmEl) {
+          bgmEl.volume = 0.55;
+          bgmEl.play().catch(() => {});
+        }
+      }
+    }
+
+    function pauseAllOst() {
+      if (ytReady && ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+        try { ytPlayer.pauseVideo(); } catch (_) {}
+      }
+      if (bgmEl) {
+        bgmEl.pause();
+      }
+    }
 
     function initAudioContext() {
       if (!audioCtx) {
@@ -543,22 +701,35 @@
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
-      // Putar ./ost.mp3 jika tersedia & tidak dimute
-      if (audioEnabled && bgmEl) {
-        bgmEl.volume = 0.55;
-        bgmEl.play().catch(() => {
-          // Abaikan error jika file ./ost.mp3 belum ditaruh user atau diblokir browser
-        });
+      if (audioEnabled) {
+        playActiveOst();
       }
     }
 
+    // Tombol Switch Sumber OST (YouTube ABO Electronic Remix <-> Local ./ost.mp3)
+    ostSourceBtn.addEventListener('click', () => {
+      if (ostMode === 'YT') {
+        ostMode = 'LOCAL';
+        showComicCallout('OST: LOCAL MP3', 50, 22, '#fde047');
+      } else {
+        ytFailed = false;
+        ostMode = 'YT';
+        showComicCallout('OST: YT REMIX!', 50, 22, '#38bdf8');
+      }
+      updateOstButtonUI();
+      if (audioEnabled) {
+        initAudioContext();
+      }
+    });
+
+    // Tombol Mute / Unmute Global
     audioBtn.addEventListener('click', () => {
       audioEnabled = !audioEnabled;
       audioBtn.textContent = audioEnabled ? 'SFX:ON' : 'MUTED';
       if (audioEnabled) {
         initAudioContext();
-      } else if (bgmEl) {
-        bgmEl.pause();
+      } else {
+        pauseAllOst();
       }
     });
 
